@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     w3 = Web3()
 
-    contract_address = Web3.to_checksum_address('0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9')
+    contract_address = Web3.to_checksum_address(df['address'][0])
 
     # proxy = get_proxy_address(w3, contract_address)
     abi = get_cached_abi(contract_address)
