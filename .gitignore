@@ -1,0 +1,6 @@
+# Raw data to be ignored
+data
+abis
+
+# Pycache
+scripts/__pycache__
