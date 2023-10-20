@@ -83,11 +83,15 @@ if __name__ == "__main__":
     # ABIS & Events
     ####################
 
-    w3 = Web3()
+    w3 = Web3() # need a valid node in order to figure out proxy address
 
     contract_address = Web3.to_checksum_address(df['address'][0])
 
+    # If your contract is a proxy
     # proxy = get_proxy_address(w3, contract_address)
+    # abi = get_cached_abi(proxy)
+
+    # If your contract is not proxy
     abi = get_cached_abi(contract_address)
 
     contract = w3.eth.contract(address=contract_address, abi=abi)
