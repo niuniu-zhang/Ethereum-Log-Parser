@@ -1,63 +1,115 @@
-# Concat logs to df, then save to csv. 
-# Use this if your file is large, or ram capacity is limited
-
-# Note: This script is an variant of preprocess_jsonlogs.py for
-# handling extremely large logs. CSV module write as you go ensures
-# the ram usage is checked. Specify your partition if you want multiple csvs!
+# preprocess_jsonlogs_RamEz.py
+# Purpose: Concatenates large Ethereum contract logs into a CSV file with controlled RAM usage.
+# Note: 
+# - This script is a variant of preprocess_jsonlogs.py, optimized for handling extremely large logs.
+# - It uses CSV module for efficient, write-as-you-go operations to manage RAM usage effectively.
 
 import os
 import json
 from tqdm import tqdm
 import csv
+import ast
+import pandas as pd
+from web3 import Web3
+from utils import get_proxy_address, get_cached_abi
+from eth_utils import event_abi_to_log_topic
 
-folder_path = 'data/usdt'
-contract_name = "usdt"
+# Configuration settings for data folder and contract name
+folder_path = 'data/your platform'
+contract_name = "your platform"
 
+# Define the output CSV file path
 parent_name = os.path.basename(os.path.dirname(folder_path))
-num_partitions = 2  # Adjust as needed: you want a single csv or multiple csvs?
+output_csv = f"{parent_name}/{contract_name}_logs_raw.csv"
 
-
-def divide_into_chunks(lst, num_partitions):
-    N = len(lst)
-    r = N % num_partitions
-    base_chunk_size = (N - r) // num_partitions
-    
-    # For all partitions except the last
-    chunks = [lst[i*base_chunk_size : (i+1)*base_chunk_size] for i in range(num_partitions - 1)]
-    
-    # Add the last partition which includes the remainder
-    start_index = (num_partitions - 1) * base_chunk_size
-    chunks.append(lst[start_index:])
-    
-    return chunks
-
+# Gather all file paths from the specified folder
 file_paths = [os.path.join(folder_path, filename) for filename in os.listdir(folder_path)]
-print(f"Text files concatenation started.")
 
+# Function to count all lines in each file
 def count_all_lines(files):
+    """
+    Counts the number of lines in each file.
+    Args:
+        files: List of file paths.
+    Returns:
+        Dictionary with file paths as keys and line counts as values.
+    """
     line_counts = {}
     for file in tqdm(files, desc="Counting lines in"):
         with open(file, 'r') as f:
             line_counts[file] = sum(1 for _ in f)
     return line_counts
 
-line_counts = count_all_lines(file_paths)
+# Main execution block
+if __name__ == "__main__":
+    print("Text files concatenation started.")
+    line_counts = count_all_lines(file_paths)
 
-for idx, chunk in enumerate(divide_into_chunks(file_paths, num_partitions), start=1):
-    output_csv = f"{parent_name}/{contract_name}_logs_raw_part{idx}.csv"
-    
+    # Writing data to CSV in a memory-efficient way
     with open(output_csv, 'w', newline='') as csvfile:
-        with open(chunk[0], 'r') as f:
+        with open(file_paths[0], 'r') as f:
             first_line = json.loads(f.readline())
             writer = csv.DictWriter(csvfile, fieldnames=first_line.keys())
             writer.writeheader()
-        
-        for file_path in tqdm(chunk, desc=f"Processing files for partition {idx}"):
+
+        for file_path in tqdm(file_paths, desc=f"Processing files:"):
             with open(file_path, 'r') as text_file:
-                data_list = []
                 for line in tqdm(text_file, total=line_counts[file_path], desc="Lines in file", leave=False):
                     data = json.loads(line)
-                    data_list.append(data)
-                writer.writerows(data_list)
-    
-    print(f"Data written to {output_csv}")
+                    writer.writerow(data)
+        
+    print(f"Data wrote to {output_csv}. Mapping event names next.")
+
+    ####################
+    # ABIs & Events
+    ####################
+
+    # Load the data from the CSV file and process 'topics' column
+    df = pd.read_csv(output_csv, dtype={'log_index':'int', 'transaction_hash':'str',
+                                        'transaction_index':'int', 'address':'str',
+                                        'data':'str', 'topics':'str', 'block_timestamp':'str',
+                                        'block_number':'int', 'block_hash':'str'}, engine='pyarrow')
+
+    # Convert 'topics' column to list using ast.literal_eval
+    df['topics'] = df['topics'].parallel_apply(ast.literal_eval)
+
+    print("Data loaded.")
+
+    # Initialize Web3 and retrieve contract ABI
+    url = "" # your eth node, e.g. Alchemy, Infura, needed for proxy contract 
+    w3 = Web3(Web3.HTTPProvider(url))
+
+    contract_address = Web3.to_checksum_address(df['address'][0])
+
+    # Retrieve ABI for proxy or non-proxy contract
+    proxy = get_proxy_address(w3, contract_address)
+    print(f"Your proxy address is: {proxy}")
+    abi = get_cached_abi(proxy)
+
+    # If your contract is not proxy
+    # abi = get_cached_abi(contract_address)
+
+    contract = w3.eth.contract(address=contract_address, abi=abi)
+
+    # Extract event ABIs and compute their signatures
+    events = [obj for obj in abi if obj['type'] == 'event']
+    event_signatures = {('0x' + event_abi_to_log_topic(evt).hex()): evt['name'] for evt in events}
+    for evt_name, sig in event_signatures.items():
+        print(f"{evt_name} - {sig}")
+
+    ##################
+    # Mapping Event
+    ##################
+
+    # Assigning event names to each log entry
+    print('Assigning names to each event.')
+    df['event'] = df['topics'].parallel_apply(lambda x: event_signatures.get(x[0], 'Unknown'))
+
+    # Print the count of each event type
+    print('Event counts:')
+    event_count = df['event'].value_counts()
+    print(event_count)
+
+    # Overwriting logs with event names
+    print(f'Saving to {output_csv} (this may take a while)')
+    df.to_csv(output_csv, index=False)

@@ -1,8 +1,8 @@
-# Concat logs to df, get event names per row, print event stats, then save to csv
-
+# preprocess_jsonlogs.py
+# Purpose: Concatenates Ethereum contract logs into a CSV file, enriching the logs with event names and printing event statistics.
 # Note: 
-# 1. You need to specify folder_path and contract_name
-# 2. get_cached_abi does not work for proxy contract address
+# - Specify 'folder_path' for the location of Google BigQuery results and 'contract_name' for the output CSV file.
+# - The function 'get_cached_abi' does not support proxy contract addresses.
 
 import os
 import json
@@ -15,15 +15,25 @@ from eth_utils import event_abi_to_log_topic
 from pandarallel import pandarallel
 import ast 
 
+# Initialize Pandarallel for efficient parallel processing
 pandarallel.initialize(progress_bar=False)
 
-folder_path = "data/aave" # specify your Google BigQuery result location
-contract_name = "aave" # specify your contract name (will be used for later event csv name, i.e, {contract_name}_{evt}_raw.csv)
+# Configuration: Define the data folder and contract name
+folder_path = "data/your platform"
+contract_name = "your platform"
 
+# Define the output file path for the consolidated logs
 parent_name = os.path.basename(os.path.dirname(folder_path))
 output_csv = f"{parent_name}/{contract_name}_logs_raw.csv"
 
 def parse_json_file(file_path):
+    """
+    Parses a JSON file and returns a list of data.
+    Args:
+        file_path (str): Path to the JSON file.
+    Returns:
+        list: A list of data extracted from the JSON file.
+    """
     data_list = []
     with open(file_path, "r") as text_file:
         for line in text_file:
@@ -40,86 +50,73 @@ if __name__ == "__main__":
     # Concatenation 
     ####################
 
-    num_processes = cpu_count() 
+    # Determine the number of processes based on CPU count
+    num_processes = cpu_count()
     
     with Pool(num_processes) as pool:
         file_paths = [os.path.join(folder_path, filename) for filename in os.listdir(folder_path)]
         
-        # Create a tqdm progress bar to track file processing
-        print(f"Text files concatenation started.")
+        # Progress bar for tracking file processing
+        print("Text files concatenation started.")
         with tqdm(total=len(file_paths)) as pbar:
             data_lists = []
             
             def update(*a):
                 pbar.update()
             
-            # Use the tqdm callback to update the progress bar
+            # Process each file in parallel and update progress bar
             for data_list in pool.imap_unordered(parse_json_file, file_paths):
                 data_lists.append(data_list)
                 update()
     
-    # Ensure all processes have completed
     pool.close()
-    pool.join()
+    pool.join() 
 
-    # Concatenate the data lists from each process
+    # Flatten the list of data lists and create a DataFrame
     combined_data_list = [item for sublist in data_lists for item in sublist]
-
     df = pd.DataFrame(combined_data_list)
 
-    df = df.astype({'log_index':'int',
-                    'transaction_hash':'str',
-                    'transaction_index':'int',
-                    'address':'str',
-                    'data':'str',
-                    'topics':'str',
-                    'block_timestamp':'str',
-                    'block_number':'int',
-                    'block_hash':'str'})
-    
+    # Define data types for DataFrame columns
+    df = df.astype({'log_index':'int', 'transaction_hash':'str', 'transaction_index':'int', 
+                    'address':'str', 'data':'str', 'topics':'str', 'block_timestamp':'str', 
+                    'block_number':'int', 'block_hash':'str'})
+
+    # Convert 'topics' column to list using ast.literal_eval
     df['topics'] = df['topics'].parallel_apply(ast.literal_eval)
 
     ####################
-    # ABIS & Events
+    # ABIs & Events
     ####################
 
-    w3 = Web3() # need a valid node in order to figure out proxy address
+    # Initialize Web3 (requires a valid node for proxy address resolution)
+    w3 = Web3()
 
+    # Get the checksummed contract address from the DataFrame
     contract_address = Web3.to_checksum_address(df['address'][0])
 
-    # If your contract is a proxy
-    # proxy = get_proxy_address(w3, contract_address)
-    # abi = get_cached_abi(proxy)
-
-    # If your contract is not proxy
+    # Retrieve ABI for the contract (different methods for proxy and non-proxy contracts)
     abi = get_cached_abi(contract_address)
-
     contract = w3.eth.contract(address=contract_address, abi=abi)
 
+    # Extract event ABIs and compute their signatures
     events = [obj for obj in abi if obj['type'] == 'event']
-    event_signatures = {}
-    for evt in events:
-        sig = '0x' + event_abi_to_log_topic(evt).hex()
-        event_signatures[sig] = evt['name']
-        # print( f"{evt['name']} - {sig}" )
-
+    event_signatures = {('0x' + event_abi_to_log_topic(evt).hex()): evt['name'] for evt in events}
+    for evt_name, sig in event_signatures.items():
+        print(f"{evt_name} - {sig}")
 
     ##################
-    # Processing Logs
+    # Mapping Event
     ##################
 
-    # Naming the events for each rows
-    print('assign names to each event.')
+    # Assign event names to each log entry based on 'topics' column
+    print('Assigning names to each event.')
     df['event'] = df['topics'].parallel_apply(lambda x: event_signatures.get(x[0], 'Unknown'))
 
-    # Some stats
-    print('event counts.')
+    # Print the count of each event type
+    print('Event counts:')
     event_count = df['event'].value_counts()
     print(event_count)
 
-    # Save to csv
-    print(f'saving to {output_csv} (Could take a while)')
+    # Save the enriched DataFrame to a CSV file
+    print(f'Saving to {output_csv} (this may take a while)')
     df.to_csv(output_csv, index=False)
-
-
-

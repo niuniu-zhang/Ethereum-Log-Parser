@@ -235,5 +235,10 @@ def flatten_attribute_dict(attribute_dict):
     flat_dict.update(args_dict)
     return flat_dict
 
+# Function to count the number of lines in the file
+def count_lines_in_file(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        return sum(1 for line in file)
+
 #if __name__ == '__main__':
 #	print( get_rarible_721() )
