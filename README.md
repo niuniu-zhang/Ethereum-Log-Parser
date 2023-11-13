@@ -19,18 +19,19 @@ Google BigQuery, in collaboration with [Nansen](https://docs.nansen.ai/database-
 This repository contains scripts for processing Ethereum contract logs. The main scripts for general purposes are `preprocess_jsonlogs.py` and `parse_allevents.py`, with additional variants for specific scenarios:
 
 1. **[preprocess_jsonlogs.py](scripts/preprocess_jsonlogs.py):**
-   - The primary script for consolidating multiple JSON logs into a single DataFrame and adding event names.
+   - Consolidates multiple JSON logs into a single DataFrame and adds event names.
 
 2. **[parse_allevents.py](scripts/parse_allevents.py):**
-   - The main script for processing and decoding logs into separate CSV files for each event type.
+   - Processes and decodes logs into separate CSV files for each event type.
 
 3. **[preprocess_jsonlogs_RamEz.py](scripts/preprocess_jsonlogs_RamEz.py):** (Variant for Large Files/Limited RAM)
-   - An alternative to `preprocess_jsonlogs.py`, designed for handling very large logs with controlled RAM usage.
+   - Optimized for handling very large logs with controlled RAM usage, an alternative to `preprocess_jsonlogs.py`.
 
-4. **[parse_event_RamEz.py](scripts/parse_event_RamEz.py):** (Variant for Single Large Event)
-   - A specialized script for efficiently parsing a single large event, using DataFrame chunking and memory management techniques.
+4. **[parse_allevents_RamEz.py](scripts/parse_allevents_RamEz.py):** (Variant for Large Files/Limited RAM)
+   - Designed for efficiently processing and parsing events from large log datasets, employing DataFrame chunking and explicit garbage collection for optimal RAM management. Alternative to `parse_allevents.py`.
 
-These scripts provide a comprehensive toolkit for various Ethereum log processing needs.
+These scripts form a comprehensive toolkit for diverse Ethereum log processing needs.
+
 
 
 
@@ -62,6 +63,7 @@ These scripts provide a comprehensive toolkit for various Ethereum log processin
 3. Using the Scripts:
     - Set up a Python environment using [requirements.txt](requirements.txt).
     - Specify the folder path and contract name in the scripts.
-    - For general purposes, run [preprocess_jsonlogs.py](scripts/preprocess_jsonlogs.py) to consolidate logs and add event names, then [parse_allevents.py](scripts/parse_allevents.py) to decode logs into separate event CSVs.
-    - For large files or limited RAM, use [preprocess_jsonlogs_RamEz.py](scripts/preprocess_jsonlogs_RamEz.py) instead of `preprocess_jsonlogs.py`.
-    - Note: `get_cached_abi` in `preprocess_jsonlogs.py` does not work with proxy addresses. Use `get_proxy_address` for these cases. The first run of `get_cached_abi` will generate `abis/cached_abis.json`. Manually overwrite this file with the correct ABIs if needed.
+    - For general purposes, run [preprocess_jsonlogs.py](scripts/preprocess_jsonlogs.py) to consolidate logs and add event names, followed by [parse_allevents.py](scripts/parse_allevents.py) for decoding logs into separate event CSVs.
+    - For large files or limited RAM scenarios, use [preprocess_jsonlogs_RamEz.py](scripts/preprocess_jsonlogs_RamEz.py) and then [parse_allevents_RamEz.py](scripts/parse_allevents_RamEz.py). These scripts utilize DataFrame chunking, garbage collection, and Pandarallel. The combination of chunking and garbage collection controls RAM usage, enabling optimal configuration of `nb_workers` for Pandarallel to achieve the fastest processing speed.
+    - Note: `get_cached_abi` does not work with proxy addresses. In such cases, use `get_proxy_address`. The first run of `get_cached_abi` will create `abis/cached_abis.json`. If necessary, manually overwrite this file with the correct ABIs.
+

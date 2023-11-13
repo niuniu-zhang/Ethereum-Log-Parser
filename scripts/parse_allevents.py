@@ -1,7 +1,7 @@
 # parse_allevents.py
 # Purpose: Processes all Ethereum contract events (excluding 'Unknown' ones) from the consolidated logs and saves them into separate CSV files per event type.
 # Note: 
-# - Run preprocess_jsonlogs.py or preprocess_jsonlogs_RamEz.py before executing this script.
+# - Run preprocess_jsonlogs.py before executing this script.
 
 import pandas as pd 
 from utils import df_log_to_receipt, flatten_attribute_dict, get_cached_abi
@@ -10,7 +10,6 @@ from web3 import Web3
 from datetime import datetime
 from tqdm import tqdm 
 from preprocess_jsonlogs import output_csv, contract_name, parent_name
-# from preprocess_jsonlogs_RamEz import output_csv, contract_name, parent_name # Depending on which script was previously used
 
 # Initialize Pandarallel for parallel processing without a progress bar
 pandarallel.initialize(progress_bar=False)

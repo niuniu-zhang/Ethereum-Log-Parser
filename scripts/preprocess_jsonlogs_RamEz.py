@@ -1,8 +1,8 @@
 # preprocess_jsonlogs_RamEz.py
-# Purpose: Concatenates large Ethereum contract logs into a CSV file with controlled RAM usage.
+# Purpose: Concatenates large Ethereum contract logs into a CSV file with controlled RAM usage, then adds event name column
 # Note: 
 # - This script is a variant of preprocess_jsonlogs.py, optimized for handling extremely large logs.
-# - It uses CSV module for efficient, write-as-you-go operations to manage RAM usage effectively.
+# - It uses CSV module, df chunking, and explicit garbage collection for efficient, write-as-you-go operations to manage RAM usage effectively.
 
 import os
 import json
@@ -11,8 +11,13 @@ import csv
 import ast
 import pandas as pd
 from web3 import Web3
-from utils import get_proxy_address, get_cached_abi
+from utils import get_proxy_address, get_cached_abi, count_lines_in_file
 from eth_utils import event_abi_to_log_topic
+import gc 
+import math
+from pandarallel import pandarallel
+
+pandarallel.initialize(progress_bar=False)
 
 # Configuration settings for data folder and contract name
 folder_path = 'data/your platform'
@@ -64,52 +69,45 @@ if __name__ == "__main__":
     # ABIs & Events
     ####################
 
-    # Load the data from the CSV file and process 'topics' column
-    df = pd.read_csv(output_csv, dtype={'log_index':'int', 'transaction_hash':'str',
-                                        'transaction_index':'int', 'address':'str',
-                                        'data':'str', 'topics':'str', 'block_timestamp':'str',
-                                        'block_number':'int', 'block_hash':'str'}, engine='pyarrow')
-
-    # Convert 'topics' column to list using ast.literal_eval
-    df['topics'] = df['topics'].parallel_apply(ast.literal_eval)
-
-    print("Data loaded.")
-
-    # Initialize Web3 and retrieve contract ABI
-    url = "" # your eth node, e.g. Alchemy, Infura, needed for proxy contract 
+    # Initialize Web3 with the provided URL
+    url = "" # your Ethereum node
     w3 = Web3(Web3.HTTPProvider(url))
 
-    contract_address = Web3.to_checksum_address(df['address'][0])
+    # Convert the provided contract address to checksum address
+    contract_address = Web3.to_checksum_address("") # add your contract address for abi fetching, if processing contract of the same type, say ERC20, whichever contract works fine.
 
-    # Retrieve ABI for proxy or non-proxy contract
+    # Retrieve ABI for the contract
     proxy = get_proxy_address(w3, contract_address)
-    print(f"Your proxy address is: {proxy}")
     abi = get_cached_abi(proxy)
-
-    # If your contract is not proxy
-    # abi = get_cached_abi(contract_address)
-
     contract = w3.eth.contract(address=contract_address, abi=abi)
 
-    # Extract event ABIs and compute their signatures
     events = [obj for obj in abi if obj['type'] == 'event']
     event_signatures = {('0x' + event_abi_to_log_topic(evt).hex()): evt['name'] for evt in events}
-    for evt_name, sig in event_signatures.items():
-        print(f"{evt_name} - {sig}")
 
-    ##################
-    # Mapping Event
-    ##################
 
-    # Assigning event names to each log entry
-    print('Assigning names to each event.')
-    df['event'] = df['topics'].parallel_apply(lambda x: event_signatures.get(x[0], 'Unknown'))
+    chunk_size = 10**6  # Adjust based on your system's capability
+    total_rows = count_lines_in_file(output_csv)  # Total rows including header
+    total_chunks = math.ceil((total_rows - 1) / chunk_size)  # Subtract 1 for header, then calculate total chunks
 
-    # Print the count of each event type
-    print('Event counts:')
-    event_count = df['event'].value_counts()
-    print(event_count)
+    # Initialize a boolean to control header writing
+    first_chunk = True
 
-    # Overwriting logs with event names
-    print(f'Saving to {output_csv} (this may take a while)')
-    df.to_csv(output_csv, index=False)
+    # Process each chunk with tqdm progress bar
+    for chunk in tqdm(pd.read_csv(output_csv, chunksize=chunk_size, dtype={'log_index':'int', 'transaction_hash':'str',
+                                            'transaction_index':'int', 'address':'str', 'data':'str', 'topics':'str', 
+                                            'block_timestamp':'str', 'block_number':'int', 'block_hash':'str'}), total=total_chunks):
+
+        # Convert 'topics' column to list and assign event names
+        chunk['topics'] = chunk['topics'].parallel_apply(ast.literal_eval)
+        chunk['event'] = chunk['topics'].parallel_apply(lambda x: event_signatures.get(x[0], 'Unknown'))
+
+        # Append the processed chunk to the output CSV
+        mode = 'a' if not first_chunk else 'w'
+        chunk.to_csv(output_csv, mode=mode, index=False, header=first_chunk)
+
+        # Update the flag so that header is not written in the next iterations
+        first_chunk = False
+
+        # Free memory
+        del chunk
+        gc.collect()

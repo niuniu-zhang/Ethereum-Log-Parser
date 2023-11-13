@@ -95,8 +95,13 @@ if __name__ == "__main__":
     contract_address = Web3.to_checksum_address(df['address'][0])
 
     # Retrieve ABI for the contract (different methods for proxy and non-proxy contracts)
+    # a) non-proxy
     abi = get_cached_abi(contract_address)
     contract = w3.eth.contract(address=contract_address, abi=abi)
+    # b) proxy
+    # proxy = get_proxy_address(w3, contract_address)
+    # abi = get_cached_abi(proxy)
+    # contract = w3.eth.contract(address=contract_address, abi=abi)
 
     # Extract event ABIs and compute their signatures
     events = [obj for obj in abi if obj['type'] == 'event']
