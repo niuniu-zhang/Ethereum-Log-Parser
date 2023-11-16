@@ -50,7 +50,7 @@ for evt, group in tqdm(grouped_df, desc='Processing Events', unit='event'):
     tqdm.write(f'Parsing {evt} event:')
 
     # Process logs and flatten the resulting AttributeDict
-    flattened_result = group.parallel_apply(lambda row: flatten_attribute_dict(df_log_to_receipt(row, contract, "Transfer")), axis=1)
+    flattened_result = group.parallel_apply(lambda row: flatten_attribute_dict(df_log_to_receipt(row, contract, evt)), axis=1)
 
     # Convert the list of dictionaries into a DataFrame
     df_temp = pd.DataFrame(flattened_result.tolist())
