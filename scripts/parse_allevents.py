@@ -63,7 +63,7 @@ for evt, group in tqdm(grouped_df, desc='Processing Events', unit='event'):
     df_temp = pd.merge(df_temp, df_timestamp, on='transactionHash', how='inner')
 
     # Saving the processed data to a CSV file
-    tqdm.write(f'{evt} event parsing finished, saving to {parent_name}/{contract_name}_{evt}_raw.csv:')
-    df_temp.to_csv(f'{parent_name}/{contract_name}_{evt}_raw.csv', index=False)
+    tqdm.write(f'{evt} event parsing finished, saving to {parent_name}/{contract_name}_{evt}.csv:')
+    df_temp.to_csv(f'{parent_name}/{contract_name}_{evt}.csv', index=False)
 
-    tqdm.write(f'{evt} event saved to {parent_name}/{contract_name}_{evt}_raw.csv.')
+    tqdm.write(f'{evt} event saved to {parent_name}/{contract_name}_{evt}.csv.')
