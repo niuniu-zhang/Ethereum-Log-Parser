@@ -229,11 +229,15 @@ def df_log_to_receipt(row, contract_obj, event):
     processed_receipt = getattr(contract_obj.events, event)().process_receipt(receipt)
     return processed_receipt[0]
 
-def flatten_attribute_dict(attribute_dict):
-    flat_dict = dict(attribute_dict)
-    args_dict = flat_dict.pop('args', {})
-    flat_dict.update(args_dict)
-    return flat_dict
+def flatten_attribute_dict(d):
+    d = dict(d)
+    items = []
+    for k, v in d.items():
+        if isinstance(v, AttributeDict):
+            items.extend(flatten_attribute_dict(v).items())
+        else:
+            items.append((k, v))
+    return dict(items)
 
 # Function to count the number of lines in the file
 def count_lines_in_file(file_path):
