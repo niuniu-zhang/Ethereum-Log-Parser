@@ -11,7 +11,7 @@ from tqdm import tqdm
 from pandarallel import pandarallel
 import gc
 import os
-from preprocess_jsonlogs_RamEz import output_csv, contract_name, parent_name
+from preprocess_jsonlogs_RamEz import processed_output_csv, contract_name, parent_name
 import math 
 
 # Initialize Pandarallel for efficient parallel processing
@@ -25,11 +25,11 @@ contract = w3.eth.contract(address=contract_address, abi=abi)
 
 # Define the chunk size for processing
 chunk_size = 500000  # Adjust based on performance and available memory
-total_rows = count_lines_in_file(output_csv)  # Total rows including header
+total_rows = count_lines_in_file(processed_output_csv)  # Total rows including header
 total_chunks = math.ceil((total_rows - 1) / chunk_size)  # Subtract 1 for header, then calculate total chunks
 
 # Process data in chunks
-for df_chunk in tqdm(pd.read_csv(output_csv, dtype={'log_index':'int', 'transaction_hash':'str', 
+for df_chunk in tqdm(pd.read_csv(processed_output_csv, dtype={'log_index':'int', 'transaction_hash':'str', 
                                                     'transaction_index':'int', 'address':'str', 
                                                     'data':'str', 'topics':'str', 'block_timestamp':'str', 
                                                     'block_number':'int', 'block_hash':'str', 'event':'str'}, 
@@ -54,7 +54,7 @@ for df_chunk in tqdm(pd.read_csv(output_csv, dtype={'log_index':'int', 'transact
         df_temp = pd.merge(df_temp, df_timestamp, on='transactionHash', how='inner')
 
         # File path for the event
-        event_file = f"{parent_name}\{contract_name}_{event_name}.csv"
+        event_file = f"{parent_name}/{contract_name}_{event_name}.csv"
 
         # Write processed data to CSV
         with open(event_file, mode='a' if os.path.exists(event_file) else 'w', newline='') as file:
@@ -67,6 +67,7 @@ for df_chunk in tqdm(pd.read_csv(output_csv, dtype={'log_index':'int', 'transact
         gc.collect()
 
     # Clear memory
+    exit()
     del df_chunk
     gc.collect()
 

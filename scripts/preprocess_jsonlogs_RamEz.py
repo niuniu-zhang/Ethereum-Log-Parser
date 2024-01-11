@@ -19,21 +19,24 @@ from pandarallel import pandarallel
 
 pandarallel.initialize(progress_bar=False)
 
+# Initialize Web3 with the provided URL
+url = "" # your Ethereum node
+w3 = Web3(Web3.HTTPProvider(url))
+
 # Configuration settings for data folder and contract name
 # Reads all files of type 
-folder_path = "../raw/usdt-eth/"
+folder_path = "path/to/data"
 file_type = ".json"
+contract_name = "CONTRACT-NAME"
+# Convert the provided contract address to checksum address
+# add your contract address for abi fetching, if processing contract of the same type, say ERC20, whichever contract works fine.
+contract_address = Web3.to_checksum_address("ABI CONTRACT ADDRESS") 
+
+parent_name = os.path.basename(os.path.dirname(folder_path))
 
 # Define the output CSV file paths
 output_csv = f"" # aggregated csv
 processed_output_csv = f"" # processed csv
-
-# Initialize Web3 with the provided URL
-url = "" # your Ethereum node
-w3 = Web3(Web3.HTTPProvider(url))
-# Convert the provided contract address to checksum address
-# add your contract address for abi fetching, if processing contract of the same type, say ERC20, whichever contract works fine.
-contract_address = Web3.to_checksum_address("ABI CONTRACT ADDRESS HERE") 
 
 # Gather all file paths from the specified folder
 # file_paths = [os.path.join(folder_path, filename) for filename in os.listdir(folder_path)]
