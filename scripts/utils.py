@@ -38,7 +38,7 @@ def fetch_abi(contract_address,retry=0):
 			print( f"Failed to get abi" )
 			return None
 	except Exception as e:
-		print( f"Failed to get {address} from {ABI_ENDPOINT}" )
+		print( f"Failed to get {contract_address} from {ABI_ENDPOINT}" )
 		print( e )
 		return None
 
@@ -229,16 +229,18 @@ def df_log_to_receipt(row, contract_obj, event):
     processed_receipt = getattr(contract_obj.events, event)().process_receipt(receipt)
     return processed_receipt[0]
 
-def flatten_attribute_dict(attribute_dict):
-    flat_dict = dict(attribute_dict)
-    args_dict = flat_dict.pop('args', {})
-    flat_dict.update(args_dict)
-    return flat_dict
+# Recursion for multiple layer of nest
+def flatten_attribute_dict(d):
+    d = dict(d)
+    items = []
+    for k, v in d.items():
+        if isinstance(v, AttributeDict):
+            items.extend(flatten_attribute_dict(v).items())
+        else:
+            items.append((k, v))
+    return dict(items)
 
 # Function to count the number of lines in the file
 def count_lines_in_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         return sum(1 for line in file)
-
-#if __name__ == '__main__':
-#	print( get_rarible_721() )

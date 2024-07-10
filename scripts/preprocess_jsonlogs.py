@@ -26,6 +26,12 @@ contract_name = "your platform"
 parent_name = os.path.basename(os.path.dirname(folder_path))
 output_csv = f"{parent_name}/{contract_name}_logs_raw.csv"
 
+# Define and create the new folder 'parsed_output' if it does not exist
+parsed_output = f"{parent_name}/{contract_name}_parsed"
+if not os.path.exists(parsed_output):
+    os.makedirs(parsed_output)
+
+
 def parse_json_file(file_path):
     """
     Parses a JSON file and returns a list of data.
@@ -76,10 +82,10 @@ if __name__ == "__main__":
     combined_data_list = [item for sublist in data_lists for item in sublist]
     df = pd.DataFrame(combined_data_list)
 
-    # Define data types for DataFrame columns
+    # Define data types for DataFrame columns (you might have to edit this)
     df = df.astype({'log_index':'int', 'transaction_hash':'str', 'transaction_index':'int', 
                     'address':'str', 'data':'str', 'topics':'str', 'block_timestamp':'str', 
-                    'block_number':'int', 'block_hash':'str'})
+                    'block_number':'int', 'block_hash':'str', 'msg_sender':'str'})
 
     # Convert 'topics' column to list using ast.literal_eval
     df['topics'] = df['topics'].parallel_apply(ast.literal_eval)

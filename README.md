@@ -42,10 +42,11 @@ These scripts form a comprehensive toolkit for diverse Ethereum log processing n
     - Register for a free account with Google BigQuery.
     Run the following SQL query to get logs for a specific contract:
     ```sql
-    SELECT * FROM `bigquery-public-data.crypto_ethereum.logs` WHERE UPPER('contract_address_here') = UPPER("{address}");
+   SELECT l.*, t.from_address as msg_sender
+   FROM `bigquery-public-data.crypto_ethereum.logs` l
+   JOIN `bigquery-public-data.crypto_ethereum.transactions` t ON l.transaction_hash = t.hash
+   WHERE UPPER(l.address) = UPPER('your contract');
     ```
-
-
     - Once the query is complete, a result table will appear. Click "Export", choose "Export to GCS".
     - Choose a Google Cloud Storage bucket and specify the filename with a wildcard (e.g., filename_*). Make sure to select the JSON format.
     - The entire table will be exported to your Google Cloud Storage bucket in multiple files (size dependent).

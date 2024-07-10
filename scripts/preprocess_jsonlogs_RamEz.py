@@ -19,16 +19,31 @@ from pandarallel import pandarallel
 
 pandarallel.initialize(progress_bar=False)
 
+# Initialize Web3 with the provided URL
+url = "" # your Ethereum node
+w3 = Web3(Web3.HTTPProvider(url))
+
 # Configuration settings for data folder and contract name
-folder_path = 'data/your platform'
-contract_name = "your platform"
+# Reads all files of type 
+folder_path = "path/to/data"
+file_type = ".json"
+contract_name = "CONTRACT-NAME"
+# Convert the provided contract address to checksum address
+# add your contract address for abi fetching, if processing contract of the same type, say ERC20, whichever contract works fine.
+contract_address = Web3.to_checksum_address("ABI CONTRACT ADDRESS") 
 
-# Define the output CSV file path
+# Define the output CSV file paths
+output_csv = f"" # aggregated csv
+processed_output_csv = f"" # processed csv
+
 parent_name = os.path.basename(os.path.dirname(folder_path))
-output_csv = f"{parent_name}/{contract_name}_logs_raw.csv"
-
 # Gather all file paths from the specified folder
-file_paths = [os.path.join(folder_path, filename) for filename in os.listdir(folder_path)]
+# file_paths = [os.path.join(folder_path, filename) for filename in os.listdir(folder_path)]
+file_paths = list()
+for filename in os.listdir(folder_path):
+    if filename.endswith(file_type):
+        file_paths.append(os.path.join(folder_path, filename))
+
 
 # Function to count all lines in each file
 def count_all_lines(files):
@@ -47,7 +62,7 @@ def count_all_lines(files):
 
 # Main execution block
 if __name__ == "__main__":
-    print("Text files concatenation started.")
+    tqdm.write("Text files concatenation started.")
     line_counts = count_all_lines(file_paths)
 
     # Writing data to CSV in a memory-efficient way
@@ -63,29 +78,26 @@ if __name__ == "__main__":
                     data = json.loads(line)
                     writer.writerow(data)
         
-    print(f"Data wrote to {output_csv}. Mapping event names next.")
+    tqdm.write(f"Data wrote to {output_csv}. Mapping event names next.")
 
     ####################
     # ABIs & Events
     ####################
 
-    # Initialize Web3 with the provided URL
-    url = "" # your Ethereum node
-    w3 = Web3(Web3.HTTPProvider(url))
-
-    # Convert the provided contract address to checksum address
-    contract_address = Web3.to_checksum_address("") # add your contract address for abi fetching, if processing contract of the same type, say ERC20, whichever contract works fine.
-
-    # Retrieve ABI for the contract
-    proxy = get_proxy_address(w3, contract_address)
-    abi = get_cached_abi(proxy)
+    # Retrieve ABI for the contract (different methods for proxy and non-proxy contracts)
+    # a) non-proxy
+    abi = get_cached_abi(contract_address)
     contract = w3.eth.contract(address=contract_address, abi=abi)
+    # b) proxy
+    # proxy = get_proxy_address(w3, contract_address)
+    # abi = get_cached_abi(proxy)
+    # contract = w3.eth.contract(address=contract_address, abi=abi)
 
     events = [obj for obj in abi if obj['type'] == 'event']
     event_signatures = {('0x' + event_abi_to_log_topic(evt).hex()): evt['name'] for evt in events}
 
 
-    chunk_size = 10**6  # Adjust based on your system's capability
+    chunk_size = 10**5  # Adjust based on your system's capability
     total_rows = count_lines_in_file(output_csv)  # Total rows including header
     total_chunks = math.ceil((total_rows - 1) / chunk_size)  # Subtract 1 for header, then calculate total chunks
 
@@ -93,9 +105,18 @@ if __name__ == "__main__":
     first_chunk = True
 
     # Process each chunk with tqdm progress bar
-    for chunk in tqdm(pd.read_csv(output_csv, chunksize=chunk_size, dtype={'log_index':'int', 'transaction_hash':'str',
-                                            'transaction_index':'int', 'address':'str', 'data':'str', 'topics':'str', 
-                                            'block_timestamp':'str', 'block_number':'int', 'block_hash':'str'}), total=total_chunks):
+    for chunk in tqdm(pd.read_csv(output_csv, 
+                                  chunksize=chunk_size, 
+                                  dtype={
+                                      'log_index':'int', 
+                                      'transaction_hash':'str',
+                                      'transaction_index':'int', 
+                                      'address':'str', 
+                                      'data':'str', 
+                                      'topics':'str', 
+                                      'block_timestamp':'str', 
+                                      'block_number':'int', 
+                                      'block_hash':'str'}), total=total_chunks):
 
         # Convert 'topics' column to list and assign event names
         chunk['topics'] = chunk['topics'].parallel_apply(ast.literal_eval)
@@ -103,7 +124,7 @@ if __name__ == "__main__":
 
         # Append the processed chunk to the output CSV
         mode = 'a' if not first_chunk else 'w'
-        chunk.to_csv(output_csv, mode=mode, index=False, header=first_chunk)
+        chunk.to_csv(processed_output_csv, mode=mode, index=False, header=first_chunk)
 
         # Update the flag so that header is not written in the next iterations
         first_chunk = False
